@@ -1,0 +1,17 @@
+bower_components/
+build/
+node_modules/
+.idea/
+.vscode/
+hub-cms/app/index.html
+hub-scripts/offline/*.json
+hub-scripts/offline/scheduled/config-data.json
+docs/
+*.orig
+debug.log
+junit-tests-report.xml
+hub-scripts/network/proto/*
+!hub-scripts/network/proto/*.md
+hub-render/component/*/test/__screenshots__/__diff__/*
+hub-render/config/key.json
+.DS_STORE

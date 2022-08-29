@@ -1,0 +1,122 @@
+#!/bin/bash
+
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+source ~/.bashrc
+
+consoleUser() {
+	echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ && ! /loginwindow/ { print $3 }'
+}
+
+displaynotification() { # $1: message $2: title
+	message=${1:-"Message"}
+	title=${2:-"Script Notification"}
+	user=$(consoleUser)
+    if [[ $user != "" ]]; then
+        uid=$(id -u "$user")
+		launchctl asuser $uid /usr/bin/osascript <<-EndOfScript
+			display notification "$message" with title "$title"
+		EndOfScript
+	fi
+}
+
+displaydialog() { # $1: message
+	message=${1:-"Message"}
+	user=$(consoleUser)
+    if [[ $user != "" ]]; then
+        uid=$(id -u "$user")
+		launchctl asuser $uid /usr/bin/osascript <<-EndOfScript
+			button returned of ¬
+			    (display dialog "$message" ¬
+				buttons {"No", "Yes"} ¬
+				default button "Yes")
+		EndOfScript
+	fi
+}
+
+displayfortext() { # $1: message $2: default text
+	message=${1:-"Message"}
+	defaultvalue=${2:-""}
+	user=$(consoleUser)
+    if [[ $user != "" ]]; then
+        uid=$(id -u "$user")
+	
+	    launchctl asuser $uid /usr/bin/osascript <<-EndOfScript
+			text returned of ¬
+				(display dialog "$message" ¬
+					default answer "$defaultvalue" ¬
+					buttons {"Cancel", "Submit"} ¬
+					default button "Submit")
+			EndOfScript
+	else
+	    exit 1
+	fi
+}
+
+displayforpass() { # $1: message $2: default text
+	message=${1:-"Message"}
+	defaultvalue=${2:-""}
+	user=$(consoleUser)
+    if [[ $user != "" ]]; then
+        uid=$(id -u "$user")
+	
+	    launchctl asuser $uid /usr/bin/osascript <<-EndOfScript
+			text returned of ¬
+				(display dialog "$message" with icon caution with hidden answer¬
+					default answer "$defaultvalue" ¬
+					buttons {"Cancel", "Submit"} ¬
+					default button "Submit")
+			EndOfScript
+	else
+	    exit 1
+	fi
+}
+
+_kill() { 
+  echo $sudoPass | sudo -S pkill -SIGKILL -f openfortivpn |  awk '{print $2}'
+  kill -TERM "$child" 2>/dev/null
+}
+
+FILE_HOMEBREW=/usr/local/bin/brew
+if [[ -f "$FILE_HOMEBREW" ]]; then
+	echo "Homebrew exists."
+else 
+	install=$(displaydialog "Install Homebrew?")
+
+	if [[ $install = "Yes" ]]; then
+		# xcode-select --install
+		SUDO_ASKPASS="$PWD/askPass.sh" NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+		/usr/local/bin/brew install openfortivpn
+	fi
+fi
+
+FILE_FORTI=/usr/local/bin/openfortivpn
+if [[ -f "$FILE_FORTI" ]]; then
+	echo "OpenFortiVpn exists."
+else 
+	install=$(displaydialog "Install OpenFortiVpn?")
+
+	if [[ $install = "Yes" ]]; then
+		/usr/local/bin/brew install openfortivpn
+	fi
+fi
+
+sudoPass=$(displayforpass "SUDO password:" "")
+
+user=$(displayfortext "VPN Username:" "$(consoleUser)")
+
+_kill
+
+pass=$(displayforpass "VPN password:" "")
+
+if [[ $sudoPass != "" && $pass != "" && $user != "" ]]; then
+	trap _kill SIGTERM
+	displaynotification "Please Confirm FortiToken..."
+	echo $sudoPass | sudo -S /usr/local/bin/openfortivpn <!!!YOUR_VPN_GATEWAY!!!> --username=$user --password=$pass --persistent=5 &
+	child=$!
+	wait "$child"
+else
+	echo "Not all data provided."
+	exit 1
+fi
+
+
